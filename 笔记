@@ -1,0 +1,108 @@
+1、新建web-Maven项目
+2、就加入依赖
+    Spring-webmvc,间接的Spring依赖都加入到项目
+    JSP Servlet依赖
+3、在web.xml中注册Spring-MVC的核心对象DispatcherServlet
+    【
+        需要在TomCat服务器启动后创建DispatcherServlet的实例对象
+        为什么创建DispatcherServlet的实例对象？
+            因为DispatcherServlet在他的创建过程中，会同时创建Spring-MVC的容器对象
+            读取Springmvc的配置文件，把这个配置文件中的对象都创建好
+            当用户发起请求时就可以直接使用对象
+    】
+    DispatcherServlet叫做中央调度器，是一个Servlet 他的父类继承HttpServlet
+    DispatcherServlet也叫做前端控制器（front controller）
+    DispatcherServlet负责接收用户提交的的请求，调用其他的控制器对象，并把处理结果显示给用户
+4、创建发起请求的页面 index.jsp
+5、创建控制器类
+    在类的上面加入@Controller注解 创建对象，并放入SpringMVC容器
+    在类的方法上面加入@RequestMapping注解
+6、创建一个作为结果的JSP
+7、创建Spring-mvc的配置文件（Spring的配置文件一样）
+    1、声明组件扫描器 指定@Contorller注解所在的包名
+    2、声明视图解析器 帮助处理视图
+
+
+
+
+Spring-MVC请求处理流程
+    发起Some.do---tomcat(web.xml---url-pattern知道*.do请求给DispatcherServlet)
+    DispatcherServlet根据Spring-MVC.xml知道some.do对应doSome方法处理
+    框架执行doSome 得到ModelAndView 转发到showJSP
+
+关于返回值void
+    在做ajax请求是可以使用void返回值（HttpResponse response）
+    使用Object返回值
+    1、加入json依赖 Spring-MVC默认使用jackson
+    2、在Spring-MVC配置文件加入<mvc:annotation-driven>注解驱动
+        完成java对象到json、xml、text、二进制等数据的格式转换
+        注解驱动使用消息转换器（HttpMessageConverter接口）功能：定义了java对象转为json的方法，有很多实现类
+        boolean canWrite(Class<?> var1, @Nullable MediaType var2);
+        void write(T var1, @Nullable MediaType var2, HttpOutputMessage var3)
+            <mvc:annotation-driven>在加入Spring-MVC配置文件后，会自动创建HttpMessageConverter的7个实现类
+            包括MappingJackson2HttpMessageConverter(使用Jackson工具库中的ObjectMapper实现java对象转为字符串)
+    3、在处理器方法上加入@ResponseBody注解
+
+
+    返回对象在框架的流程
+        1、框架会把返回的Student类型，调用框架中的ArrayList<HttpMessageConverter>中每个类的canwrite()方法
+            检查哪个HttpMessageConverter接口的实现类能处理Object类型
+        2、框架会调用实现类MappingJackson2HttpMessageConverter的Write()方法把Object转为json
+        3、框架调用@ResponseBody把结果输出到浏览器，完成ajax请求处理
+
+
+ 当返回值是List返回浏览器是一个Json数组
+
+ 如果方法有@ResponseBody注解，返回String就是数据 反之就是视图
+需要注意的是返回值是String是文本数据 在ajax里是需要设置datatype为text
+返回中文的时候会出现乱码问题 使用@ReqquestMapping的produces属性=“text/plain;charset=UTF-8”
+
+事务管理器
+<!-- 接口PlatformTransactionMnager实现 -->
+<bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+    <property name="dataSource" ref="dataSource" />
+</bean>
+<!-- 开启事务注解支持 -->
+<tx:annotation-driven transaction-manager="txManager" />
+
+
+tomcat的web.xml
+有defaultServlet
+可以处理静态资源文件和为映射到其他Servlet的请求
+    <servlet>
+        <servlet-name>default</servlet-name>
+        <servlet-class>org.apache.catalina.servlets.DefaultServlet</servlet-class>
+        <init-param>
+            <param-name>debug</param-name>
+            <param-value>0</param-value>
+        </init-param>
+        <init-param>
+            <param-name>listings</param-name>
+            <param-value>false</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+            <servlet-name>default</servlet-name>
+            <url-pattern>/</url-pattern>【/：表示静态资源和为映射的请求都交给默认Servlet处理】
+    </servlet-mapping>
+
+    第一种处理静态资源的方式
+        在Spring-MVC.xml配置文件加入<mvc:default-servlet-handler/>
+        原理：在加入这个标签后，框架会创建控制器对象DefaultServletHttpRequestHandler（类似我们的controller）
+        DefaultServletHttpRequestHandler这个对象可以把接收的请求转发给tomcat的DefaultServlet
+
+        <mvc:default-servlet-handler/>和@RequestMapping有冲突导致所有资源都交给tomcat的默认Servlet处理
+        需要加入<mvc:annotation-driven/>注解驱动器去处理
+
+    第二种处理静态资源的方式
+        <mvc:resources mapping="" location=""/>
+        加入框架后会创建ResourceHttpRequestHandler处理器对象
+        让这个对象处理静态资源文件，不依赖tomcat服务器的默认Servlet
+        mapping：访问静态资源的uri地址 使用通配符 **
+        location：静态资源在你项目中的目录位置
+
+        img/**的文件在/img下找
+        resources和@RequestMapping也有冲突 需要加入注解驱动
+
+        <mvc:resources mapping="/img/**" location="/img/"/>
